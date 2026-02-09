@@ -1,0 +1,18 @@
+apiVersion: v2
+name: tcloud-shell
+description: GPU-enabled development shell for Together.AI clusters
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - gpu
+  - shell
+  - cuda
+  - ml
+  - development
+maintainers:
+  - name: Together AI
+    email: engineering@together.ai
+home: https://together.ai
+sources:
+  - https://github.com/together-ai/tcloud-shell

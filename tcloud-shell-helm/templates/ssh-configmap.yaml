@@ -1,0 +1,82 @@
+{{- if .Values.sshShell.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tcloud-shell.fullname" . }}-ssh-setup
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "tcloud-shell.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ssh-shell
+data:
+  entrypoint.sh: |
+    #!/bin/bash
+    set -e
+
+    echo "=== TCloud Shell Environment Setup ==="
+
+    # Install SSH server and essential packages
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+    apt-get install -y -qq {{ range .Values.packages.system }}{{ . }} {{ end }}> /dev/null 2>&1
+
+    # Create user if not exists
+    if ! id -u {{ .Values.user.name }} &>/dev/null; then
+        useradd -m -s {{ .Values.user.shell }} -u {{ .Values.user.uid }} {{ .Values.user.name }}
+        echo "{{ .Values.user.name }}:{{ .Values.user.name }}" | chpasswd
+        {{- if .Values.user.sudoAccess }}
+        usermod -aG sudo {{ .Values.user.name }}
+        echo "{{ .Values.user.name }} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+        {{- end }}
+    fi
+
+    # Setup SSH
+    mkdir -p /home/{{ .Values.user.name }}/.ssh
+    if [ -f /ssh-keys/authorized_keys ]; then
+        cp /ssh-keys/authorized_keys /home/{{ .Values.user.name }}/.ssh/authorized_keys
+        chmod 600 /home/{{ .Values.user.name }}/.ssh/authorized_keys
+        chown -R {{ .Values.user.name }}:{{ .Values.user.name }} /home/{{ .Values.user.name }}/.ssh
+    fi
+
+    # Create workspace directory
+    mkdir -p {{ .Values.storage.mountPath }}
+    chown -R {{ .Values.user.name }}:{{ .Values.user.name }} {{ .Values.storage.mountPath }}
+
+    # Setup SSH daemon
+    mkdir -p /run/sshd
+    chmod 0755 /run/sshd
+
+    # Configure SSH
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
+    sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+
+    # Test GPU access
+    echo "=== Testing GPU Access ==="
+    if command -v nvidia-smi &> /dev/null; then
+        nvidia-smi
+    else
+        echo "Warning: nvidia-smi not found"
+    fi
+
+    # Create welcome message
+    cat > /etc/motd <<'MOTD_EOF'
+    ╔══════════════════════════════════════════════════════════════╗
+    ║                                                              ║
+    ║           Welcome to Together AI TCloud Shell                ║
+    ║                                                              ║
+    ║  GPU-Enabled Development Environment                         ║
+    ║  • Access your GPUs with nvidia-smi                          ║
+    ║  • Workspace: {{ .Values.storage.mountPath }} (persistent storage)                ║
+    ║  • Install packages with: sudo pip3 install <package>        ║
+    ║                                                              ║
+    ║  Need help? Visit https://docs.together.ai                   ║
+    ║                                                              ║
+    ╚══════════════════════════════════════════════════════════════╝
+    MOTD_EOF
+
+    echo "=== TCloud Shell Ready ==="
+    echo "Access via: ssh {{ .Values.user.name }}@<external-ip>"
+
+    # Start SSH daemon
+    exec /usr/sbin/sshd -D -e
+{{- end }}

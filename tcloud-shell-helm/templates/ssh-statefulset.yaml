@@ -1,0 +1,111 @@
+{{- if .Values.sshShell.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "tcloud-shell.fullname" . }}-ssh
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "tcloud-shell.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ssh-shell
+spec:
+  serviceName: {{ include "tcloud-shell.fullname" . }}-ssh
+  replicas: {{ .Values.sshShell.replicas }}
+  selector:
+    matchLabels:
+      {{- include "tcloud-shell.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ssh-shell
+  template:
+    metadata:
+      labels:
+        {{- include "tcloud-shell.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ssh-shell
+      {{- with .Values.annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- if .Values.sshShell.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.sshShell.nodeSelector | nindent 8 }}
+      {{- end }}
+
+      {{- if .Values.sshShell.tolerations }}
+      tolerations:
+        {{- toYaml .Values.sshShell.tolerations | nindent 8 }}
+      {{- end }}
+
+      containers:
+      - name: tcloud-shell
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/bin/bash", "/scripts/entrypoint.sh"]
+
+        ports:
+        - name: ssh
+          containerPort: 22
+          protocol: TCP
+
+        resources:
+          {{- toYaml .Values.sshShell.resources | nindent 10 }}
+
+        env:
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: {{ .Values.cuda.visible_devices | quote }}
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: {{ .Values.cuda.driver_capabilities | quote }}
+        - name: CUDA_HOME
+          value: {{ .Values.cuda.home | quote }}
+        - name: PATH
+          value: "{{ .Values.cuda.home }}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        - name: LD_LIBRARY_PATH
+          value: "{{ .Values.cuda.home }}/lib64:/usr/local/nvidia/lib64"
+
+        volumeMounts:
+        {{- if .Values.storage.enabled }}
+        - name: workspace
+          mountPath: {{ .Values.storage.mountPath }}
+        {{- end }}
+        - name: ssh-keys
+          mountPath: /ssh-keys
+          readOnly: true
+        - name: setup-scripts
+          mountPath: /scripts
+        {{- if .Values.shm.enabled }}
+        - name: dev-shm
+          mountPath: /dev/shm
+        {{- end }}
+
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+
+        {{- if .Values.probes.ssh.livenessProbe }}
+        livenessProbe:
+          {{- toYaml .Values.probes.ssh.livenessProbe | nindent 10 }}
+        {{- end }}
+
+        {{- if .Values.probes.ssh.readinessProbe }}
+        readinessProbe:
+          {{- toYaml .Values.probes.ssh.readinessProbe | nindent 10 }}
+        {{- end }}
+
+      volumes:
+      {{- if .Values.storage.enabled }}
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: {{ include "tcloud-shell.fullname" . }}-storage
+      {{- end }}
+      - name: ssh-keys
+        secret:
+          secretName: {{ include "tcloud-shell.fullname" . }}-ssh-keys
+          defaultMode: 0600
+      - name: setup-scripts
+        configMap:
+          name: {{ include "tcloud-shell.fullname" . }}-ssh-setup
+          defaultMode: 0755
+      {{- if .Values.shm.enabled }}
+      - name: dev-shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: {{ .Values.shm.sizeLimit }}
+      {{- end }}
+{{- end }}

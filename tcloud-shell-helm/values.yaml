@@ -1,0 +1,218 @@
+# Default values for tcloud-shell
+
+# Global settings
+global:
+  namespace: tcloud-shell
+
+# Container image configuration
+image:
+  repository: nvidia/cuda
+  tag: "12.6.0-devel-ubuntu22.04"
+  pullPolicy: IfNotPresent
+
+# SSH Shell configuration
+sshShell:
+  enabled: true
+  replicas: 1
+
+  # Resource requests and limits
+  resources:
+    requests:
+      nvidia.com/gpu: 1
+      memory: "32Gi"
+      cpu: "8"
+    limits:
+      nvidia.com/gpu: 1
+      memory: "64Gi"
+      cpu: "16"
+
+  # Service configuration
+  service:
+    type: LoadBalancer
+    port: 22
+    annotations: {}
+    # Example: Add cloud provider specific annotations
+    # annotations:
+    #   service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+
+  # SSH authorized_keys (base64 encoded)
+  # Generate with: cat ~/.ssh/id_rsa.pub | base64
+  authorizedKeys: ""
+
+  # Node selector for GPU nodes
+  nodeSelector:
+    nvidia.com/gpu.present: "true"
+
+  # Tolerations for GPU taints
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+
+# Web Shell configuration
+webShell:
+  enabled: true
+  replicas: 1
+
+  # Resource requests and limits
+  resources:
+    requests:
+      nvidia.com/gpu: 1
+      memory: "32Gi"
+      cpu: "8"
+    limits:
+      nvidia.com/gpu: 1
+      memory: "64Gi"
+      cpu: "16"
+
+  # Service configuration
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 7681
+    annotations: {}
+
+  # ttyd configuration
+  ttyd:
+    version: "1.7.7"
+    port: 7681
+    fontSize: 16
+    theme:
+      background: "#1e1e1e"
+      foreground: "#cccccc"
+
+  # Node selector for GPU nodes
+  nodeSelector:
+    nvidia.com/gpu.present: "true"
+
+  # Tolerations for GPU taints
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+
+# Storage configuration
+storage:
+  enabled: true
+
+  # Storage class name
+  # Default: shared-wekafs (for Together.AI clusters)
+  storageClassName: "shared-wekafs"
+
+  # Storage size
+  size: "100Gi"
+
+  # Access mode (ReadWriteMany for shared access)
+  accessModes:
+    - ReadWriteMany
+
+  # Mount path in containers
+  mountPath: /workspace
+
+  # Optional: Use existing PV
+  existingVolume: ""
+
+# User configuration
+user:
+  name: tcloud
+  uid: 1000
+  shell: /bin/bash
+  createHome: true
+  sudoAccess: true
+
+# CUDA environment variables
+cuda:
+  home: /usr/local/cuda
+  visible_devices: "all"
+  driver_capabilities: "compute,utility"
+
+# Shared memory configuration
+shm:
+  enabled: true
+  sizeLimit: "32Gi"
+
+# Security context
+securityContext:
+  privileged: false
+  capabilities:
+    add:
+      - SYS_ADMIN
+
+# Probes configuration
+probes:
+  ssh:
+    livenessProbe:
+      tcpSocket:
+        port: 22
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readinessProbe:
+      tcpSocket:
+        port: 22
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+  web:
+    livenessProbe:
+      httpGet:
+        path: /
+        port: 7681
+      initialDelaySeconds: 60
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readinessProbe:
+      httpGet:
+        path: /
+        port: 7681
+      initialDelaySeconds: 30
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+# Pre-install packages
+packages:
+  # System packages to install
+  system:
+    - openssh-server
+    - sudo
+    - curl
+    - wget
+    - git
+    - vim
+    - nano
+    - htop
+    - tmux
+    - screen
+    - build-essential
+    - python3-pip
+    - python3-dev
+
+  # Python packages to install (optional, can be empty for faster startup)
+  python: []
+  # Example:
+  # python:
+  #   - torch
+  #   - tensorflow
+  #   - jax[cuda12]
+  #   - numpy
+  #   - pandas
+
+# Labels and annotations
+labels: {}
+annotations: {}
+
+# Pod disruption budget (optional)
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# Service account
+serviceAccount:
+  create: true
+  name: tcloud-shell
+  annotations: {}

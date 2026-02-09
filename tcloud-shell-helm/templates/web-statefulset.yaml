@@ -1,0 +1,104 @@
+{{- if .Values.webShell.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "tcloud-shell.fullname" . }}-web
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "tcloud-shell.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web-shell
+spec:
+  serviceName: {{ include "tcloud-shell.fullname" . }}-web
+  replicas: {{ .Values.webShell.replicas }}
+  selector:
+    matchLabels:
+      {{- include "tcloud-shell.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: web-shell
+  template:
+    metadata:
+      labels:
+        {{- include "tcloud-shell.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: web-shell
+      {{- with .Values.annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- if .Values.webShell.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.webShell.nodeSelector | nindent 8 }}
+      {{- end }}
+
+      {{- if .Values.webShell.tolerations }}
+      tolerations:
+        {{- toYaml .Values.webShell.tolerations | nindent 8 }}
+      {{- end }}
+
+      containers:
+      - name: tcloud-web-shell
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/bin/bash", "/scripts/entrypoint.sh"]
+
+        ports:
+        - name: http
+          containerPort: {{ .Values.webShell.ttyd.port }}
+          protocol: TCP
+
+        resources:
+          {{- toYaml .Values.webShell.resources | nindent 10 }}
+
+        env:
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: {{ .Values.cuda.visible_devices | quote }}
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: {{ .Values.cuda.driver_capabilities | quote }}
+        - name: CUDA_HOME
+          value: {{ .Values.cuda.home | quote }}
+        - name: PATH
+          value: "{{ .Values.cuda.home }}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        - name: LD_LIBRARY_PATH
+          value: "{{ .Values.cuda.home }}/lib64:/usr/local/nvidia/lib64"
+
+        volumeMounts:
+        {{- if .Values.storage.enabled }}
+        - name: workspace
+          mountPath: {{ .Values.storage.mountPath }}
+        {{- end }}
+        - name: setup-scripts
+          mountPath: /scripts
+        {{- if .Values.shm.enabled }}
+        - name: dev-shm
+          mountPath: /dev/shm
+        {{- end }}
+
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+
+        {{- if .Values.probes.web.livenessProbe }}
+        livenessProbe:
+          {{- toYaml .Values.probes.web.livenessProbe | nindent 10 }}
+        {{- end }}
+
+        {{- if .Values.probes.web.readinessProbe }}
+        readinessProbe:
+          {{- toYaml .Values.probes.web.readinessProbe | nindent 10 }}
+        {{- end }}
+
+      volumes:
+      {{- if .Values.storage.enabled }}
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: {{ include "tcloud-shell.fullname" . }}-storage
+      {{- end }}
+      - name: setup-scripts
+        configMap:
+          name: {{ include "tcloud-shell.fullname" . }}-web-setup
+          defaultMode: 0755
+      {{- if .Values.shm.enabled }}
+      - name: dev-shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: {{ .Values.shm.sizeLimit }}
+      {{- end }}
+{{- end }}

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tcloud-shell-storage
+  namespace: tcloud-shell
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: shared-wekafs
+  resources:
+    requests:
+      storage: 100Gi

@@ -1,0 +1,28 @@
+{{- if .Values.sshShell.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tcloud-shell.fullname" . }}-ssh
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "tcloud-shell.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ssh-shell
+  {{- with .Values.sshShell.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.sshShell.service.type }}
+  selector:
+    {{- include "tcloud-shell.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ssh-shell
+  ports:
+  - name: ssh
+    port: {{ .Values.sshShell.service.port }}
+    targetPort: 22
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+{{- end }}

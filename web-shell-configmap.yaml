@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tcloud-web-shell-setup
+  namespace: tcloud-shell
+data:
+  entrypoint.sh: |
+    #!/bin/bash
+    set -e
+
+    echo "=== TCloud Web Shell Setup ==="
+
+    # Install ttyd and essential packages
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+    apt-get install -y -qq \
+        wget \
+        curl \
+        git \
+        vim \
+        nano \
+        htop \
+        tmux \
+        python3-pip \
+        sudo \
+        build-essential > /dev/null 2>&1
+
+    # Download and install ttyd
+    TTYD_VERSION="1.7.7"
+    wget -q https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.x86_64 -O /usr/local/bin/ttyd
+    chmod +x /usr/local/bin/ttyd
+
+    # Create user
+    if ! id -u tcloud &>/dev/null; then
+        useradd -m -s /bin/bash -u 1000 tcloud
+        echo "tcloud:tcloud" | chpasswd
+        usermod -aG sudo tcloud
+        echo "tcloud ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+    fi
+
+    # Create workspace directory
+    mkdir -p /workspace
+    chown -R tcloud:tcloud /workspace
+
+    # Test GPU access
+    echo "=== Testing GPU Access ==="
+    nvidia-smi --query-gpu=name,count --format=csv,noheader | head -1
+
+    # Create welcome message
+    cat > /etc/motd <<'MOTD_EOF'
+    ╔══════════════════════════════════════════════════════════════╗
+    ║                                                              ║
+    ║           Welcome to Together AI TCloud Shell                ║
+    ║                                                              ║
+    ║  GPU-Enabled Development Environment                         ║
+    ║  • Access your GPUs with nvidia-smi                          ║
+    ║  • Workspace: /workspace (persistent storage)                ║
+    ║  • Install packages with: sudo pip3 install <package>        ║
+    ║                                                              ║
+    ║  Need help? Visit https://docs.together.ai                   ║
+    ║                                                              ║
+    ╚══════════════════════════════════════════════════════════════╝
+    MOTD_EOF
+
+    echo "=== TCloud Web Shell Ready ==="
+    echo "Access via: http://<external-ip>:7681"
+
+    # Start ttyd with bash as tcloud user
+    # -p 7681: port
+    # -u tcloud:tcloud: run as tcloud user
+    # -W: writable (allow input)
+    # -t disableReconnect=true: disable auto-reconnect
+    # -t fontSize=16: larger font
+    exec /usr/local/bin/ttyd \
+        -p 7681 \
+        -i 0.0.0.0 \
+        -W \
+        -t fontSize=16 \
+        -t theme='{"background":"#1e1e1e","black":"#000000","blue":"#4b8bbe","brightBlack":"#808080","brightBlue":"#6bb6ff","brightCyan":"#00ffff","brightGreen":"#55ff55","brightMagenta":"#ff55ff","brightRed":"#ff5555","brightWhite":"#ffffff","brightYellow":"#ffff55","cyan":"#00b8d4","foreground":"#cccccc","green":"#00d787","magenta":"#d700ff","red":"#e74856","selectionBackground":"#c1deff","white":"#e5e5e5","yellow":"#f0c674"}' \
+        su - tcloud

@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tcloud-shell
+  namespace: tcloud-shell
+  labels:
+    app: tcloud-shell
+spec:
+  type: LoadBalancer
+  selector:
+    app: tcloud-shell
+  ports:
+  - name: ssh
+    port: 22
+    targetPort: 22
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800

@@ -1,0 +1,122 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your TCloud Shell environment is being deployed in namespace: {{ .Values.global.namespace }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🚀 TCloud Shell - GPU-Enabled Development Environment
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{{- if .Values.sshShell.enabled }}
+
+📡 SSH Shell Access:
+
+   1. Wait for LoadBalancer to get an external IP:
+
+      kubectl get svc -n {{ .Values.global.namespace }} {{ include "tcloud-shell.fullname" . }}-ssh --watch
+
+   2. Get the external IP:
+
+      export SSH_IP=$(kubectl get svc -n {{ .Values.global.namespace }} {{ include "tcloud-shell.fullname" . }}-ssh -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+      echo "SSH IP: $SSH_IP"
+
+   3. Connect via SSH:
+
+      ssh {{ .Values.user.name }}@$SSH_IP
+
+   Note: Make sure you've added your SSH public key in values.yaml
+         (sshShell.authorizedKeys)
+
+{{- end }}
+
+{{- if .Values.webShell.enabled }}
+
+🌐 Web Shell Access:
+
+   1. Wait for LoadBalancer to get an external IP:
+
+      kubectl get svc -n {{ .Values.global.namespace }} {{ include "tcloud-shell.fullname" . }}-web --watch
+
+   2. Get the external IP:
+
+      export WEB_IP=$(kubectl get svc -n {{ .Values.global.namespace }} {{ include "tcloud-shell.fullname" . }}-web -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+      echo "Web Shell URL: http://$WEB_IP"
+
+   3. Open in browser:
+
+      open http://$WEB_IP  # macOS
+      # or
+      xdg-open http://$WEB_IP  # Linux
+
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📊 Resource Information
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{{- if .Values.sshShell.enabled }}
+SSH Shell:
+  • GPUs: {{ index .Values.sshShell.resources.requests "nvidia.com/gpu" }}
+  • Memory: {{ .Values.sshShell.resources.requests.memory }}
+  • CPU: {{ .Values.sshShell.resources.requests.cpu }}
+{{- end }}
+
+{{- if .Values.webShell.enabled }}
+Web Shell:
+  • GPUs: {{ index .Values.webShell.resources.requests "nvidia.com/gpu" }}
+  • Memory: {{ .Values.webShell.resources.requests.memory }}
+  • CPU: {{ .Values.webShell.resources.requests.cpu }}
+{{- end }}
+
+{{- if .Values.storage.enabled }}
+Storage:
+  • Size: {{ .Values.storage.size }}
+  • Class: {{ .Values.storage.storageClassName }}
+  • Mount: {{ .Values.storage.mountPath }}
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🛠️  Useful Commands
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Check pod status
+kubectl get pods -n {{ .Values.global.namespace }}
+
+# View logs (SSH shell)
+{{- if .Values.sshShell.enabled }}
+kubectl logs -n {{ .Values.global.namespace }} {{ include "tcloud-shell.fullname" . }}-ssh-0
+{{- end }}
+
+# View logs (Web shell)
+{{- if .Values.webShell.enabled }}
+kubectl logs -n {{ .Values.global.namespace }} {{ include "tcloud-shell.fullname" . }}-web-0
+{{- end }}
+
+# Check services
+kubectl get svc -n {{ .Values.global.namespace }}
+
+# Check storage
+kubectl get pvc -n {{ .Values.global.namespace }}
+
+# Scale down (pause)
+{{- if .Values.sshShell.enabled }}
+kubectl scale sts {{ include "tcloud-shell.fullname" . }}-ssh -n {{ .Values.global.namespace }} --replicas=0
+{{- end }}
+{{- if .Values.webShell.enabled }}
+kubectl scale sts {{ include "tcloud-shell.fullname" . }}-web -n {{ .Values.global.namespace }} --replicas=0
+{{- end }}
+
+# Scale up (resume)
+{{- if .Values.sshShell.enabled }}
+kubectl scale sts {{ include "tcloud-shell.fullname" . }}-ssh -n {{ .Values.global.namespace }} --replicas=1
+{{- end }}
+{{- if .Values.webShell.enabled }}
+kubectl scale sts {{ include "tcloud-shell.fullname" . }}-web -n {{ .Values.global.namespace }} --replicas=1
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 Documentation: https://docs.together.ai/tcloud-shell
+🐛 Issues: https://github.com/together-ai/tcloud-shell/issues
+💬 Support: support@together.ai
+
+Happy coding! 🚀

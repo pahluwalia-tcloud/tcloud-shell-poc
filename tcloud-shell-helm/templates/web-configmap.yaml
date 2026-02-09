@@ -1,0 +1,75 @@
+{{- if .Values.webShell.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tcloud-shell.fullname" . }}-web-setup
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "tcloud-shell.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web-shell
+data:
+  entrypoint.sh: |
+    #!/bin/bash
+    set -e
+
+    echo "=== TCloud Web Shell Setup ==="
+
+    # Install ttyd and essential packages
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+    apt-get install -y -qq {{ range .Values.packages.system }}{{ . }} {{ end }}> /dev/null 2>&1
+
+    # Download and install ttyd
+    TTYD_VERSION="{{ .Values.webShell.ttyd.version }}"
+    wget -q https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.x86_64 -O /usr/local/bin/ttyd
+    chmod +x /usr/local/bin/ttyd
+
+    # Create user
+    if ! id -u {{ .Values.user.name }} &>/dev/null; then
+        useradd -m -s {{ .Values.user.shell }} -u {{ .Values.user.uid }} {{ .Values.user.name }}
+        echo "{{ .Values.user.name }}:{{ .Values.user.name }}" | chpasswd
+        {{- if .Values.user.sudoAccess }}
+        usermod -aG sudo {{ .Values.user.name }}
+        echo "{{ .Values.user.name }} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+        {{- end }}
+    fi
+
+    # Create workspace directory
+    mkdir -p {{ .Values.storage.mountPath }}
+    chown -R {{ .Values.user.name }}:{{ .Values.user.name }} {{ .Values.storage.mountPath }}
+
+    # Add motd display to .bashrc
+    echo 'cat /etc/motd 2>/dev/null' >> /home/{{ .Values.user.name }}/.bashrc
+
+    # Test GPU access
+    echo "=== Testing GPU Access ==="
+    nvidia-smi --query-gpu=name,count --format=csv,noheader | head -1
+
+    # Create welcome message
+    cat > /etc/motd <<'MOTD_EOF'
+    ╔══════════════════════════════════════════════════════════════╗
+    ║                                                              ║
+    ║           Welcome to Together AI TCloud Shell                ║
+    ║                                                              ║
+    ║  GPU-Enabled Development Environment                         ║
+    ║  • Access your GPUs with nvidia-smi                          ║
+    ║  • Workspace: {{ .Values.storage.mountPath }} (persistent storage)                ║
+    ║  • Install packages with: sudo pip3 install <package>        ║
+    ║                                                              ║
+    ║  Need help? Visit https://docs.together.ai                   ║
+    ║                                                              ║
+    ╚══════════════════════════════════════════════════════════════╝
+    MOTD_EOF
+
+    echo "=== TCloud Web Shell Ready ==="
+    echo "Access via: http://<external-ip>:{{ .Values.webShell.ttyd.port }}"
+
+    # Start ttyd with bash as tcloud user
+    exec /usr/local/bin/ttyd \
+        -p {{ .Values.webShell.ttyd.port }} \
+        -i 0.0.0.0 \
+        -W \
+        -t fontSize={{ .Values.webShell.ttyd.fontSize }} \
+        -t theme='{"background":"{{ .Values.webShell.ttyd.theme.background }}","foreground":"{{ .Values.webShell.ttyd.theme.foreground }}"}' \
+        su - {{ .Values.user.name }}
+{{- end }}

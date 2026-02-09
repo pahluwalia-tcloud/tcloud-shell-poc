@@ -1,0 +1,28 @@
+{{- if .Values.webShell.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tcloud-shell.fullname" . }}-web
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "tcloud-shell.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web-shell
+  {{- with .Values.webShell.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.webShell.service.type }}
+  selector:
+    {{- include "tcloud-shell.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: web-shell
+  ports:
+  - name: http
+    port: {{ .Values.webShell.service.port }}
+    targetPort: {{ .Values.webShell.service.targetPort }}
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+{{- end }}

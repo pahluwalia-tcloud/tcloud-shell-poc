@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tcloud-shell-setup
+  namespace: tcloud-shell
+data:
+  entrypoint.sh: |
+    #!/bin/bash
+    set -e
+
+    echo "=== TCloud Shell Environment Setup ==="
+
+    # Install SSH server and essential packages
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+    apt-get install -y -qq openssh-server sudo curl wget git vim nano htop tmux python3-pip > /dev/null 2>&1
+
+    # Create user if not exists
+    if ! id -u tcloud &>/dev/null; then
+        useradd -m -s /bin/bash -u 1000 tcloud
+        echo "tcloud:tcloud" | chpasswd
+        usermod -aG sudo tcloud
+        echo "tcloud ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+    fi
+
+    # Setup SSH
+    mkdir -p /home/tcloud/.ssh
+    if [ -f /ssh-keys/authorized_keys ]; then
+        cp /ssh-keys/authorized_keys /home/tcloud/.ssh/authorized_keys
+        chmod 600 /home/tcloud/.ssh/authorized_keys
+        chown -R tcloud:tcloud /home/tcloud/.ssh
+    fi
+
+    # Create workspace directory
+    mkdir -p /workspace
+    chown -R tcloud:tcloud /workspace
+
+    # Setup SSH daemon
+    mkdir -p /run/sshd
+    chmod 0755 /run/sshd
+
+    # Configure SSH
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
+    sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+
+    # Test GPU access
+    echo "=== Testing GPU Access ==="
+    if command -v nvidia-smi &> /dev/null; then
+        nvidia-smi
+    else
+        echo "Warning: nvidia-smi not found"
+    fi
+
+    # Create welcome message
+    cat > /etc/motd <<'MOTD_EOF'
+    ╔══════════════════════════════════════════════════════════════╗
+    ║                                                              ║
+    ║           Welcome to Together AI TCloud Shell                ║
+    ║                                                              ║
+    ║  GPU-Enabled Development Environment                         ║
+    ║  • Access your GPUs with nvidia-smi                          ║
+    ║  • Workspace: /workspace (persistent storage)                ║
+    ║  • Install packages with: sudo pip3 install <package>        ║
+    ║                                                              ║
+    ║  Need help? Visit https://docs.together.ai                   ║
+    ║                                                              ║
+    ╚══════════════════════════════════════════════════════════════╝
+    MOTD_EOF
+
+    echo "=== TCloud Shell Ready ==="
+    echo "Access via: ssh tcloud@<external-ip>"
+
+    # Start SSH daemon
+    exec /usr/sbin/sshd -D -e
+
+  install-tools.sh: |
+    #!/bin/bash
+    set -e
+
+    echo "=== Installing TCloud Shell Tools ==="
+
+    # Update package list
+    apt-get update
+
+    # Install essential tools
+    apt-get install -y \
+        openssh-server \
+        sudo \
+        curl \
+        wget \
+        git \
+        vim \
+        nano \
+        htop \
+        tmux \
+        screen \
+        build-essential \
+        python3-pip \
+        python3-dev
+
+    # Install Python ML libraries
+    pip3 install --no-cache-dir \
+        torch \
+        tensorflow \
+        jax[cuda12] \
+        numpy \
+        pandas \
+        scikit-learn \
+        jupyter \
+        ipython
+
+    # Install Together CLI (placeholder - adjust based on actual installation method)
+    # pip3 install together-cli || echo "Together CLI installation skipped"
+
+    echo "=== Tools Installation Complete ==="

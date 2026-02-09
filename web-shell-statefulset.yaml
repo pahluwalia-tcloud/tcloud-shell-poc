@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tcloud-web-shell
+  namespace: tcloud-shell
+  labels:
+    app: tcloud-web-shell
+spec:
+  serviceName: tcloud-web-shell
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tcloud-web-shell
+  template:
+    metadata:
+      labels:
+        app: tcloud-web-shell
+    spec:
+      # Node selector to target GPU nodes
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+
+      # Tolerate any taints on GPU nodes
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+
+      containers:
+      - name: tcloud-web-shell
+        image: nvidia/cuda:12.6.0-devel-ubuntu22.04
+        command: ["/bin/bash", "/scripts/entrypoint.sh"]
+
+        ports:
+        - name: http
+          containerPort: 7681
+          protocol: TCP
+
+        resources:
+          requests:
+            nvidia.com/gpu: 1
+            memory: "32Gi"
+            cpu: "8"
+          limits:
+            nvidia.com/gpu: 1
+            memory: "64Gi"
+            cpu: "16"
+
+        env:
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "all"
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: "compute,utility"
+        - name: CUDA_HOME
+          value: "/usr/local/cuda"
+        - name: PATH
+          value: "/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        - name: LD_LIBRARY_PATH
+          value: "/usr/local/cuda/lib64:/usr/local/nvidia/lib64"
+
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+        - name: setup-scripts
+          mountPath: /scripts
+        - name: dev-shm
+          mountPath: /dev/shm
+
+        securityContext:
+          privileged: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 7681
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 7681
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+      volumes:
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: tcloud-shell-storage
+      - name: setup-scripts
+        configMap:
+          name: tcloud-web-shell-setup
+          defaultMode: 0755
+      - name: dev-shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 32Gi

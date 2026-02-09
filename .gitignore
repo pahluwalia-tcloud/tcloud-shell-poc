@@ -1,0 +1,21 @@
+# SSH Keys (keep private key secret!)
+tcloud_shell_key
+
+# Kubernetes configs
+*.kubeconfig
+
+# Helm packages
+*.tgz
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log

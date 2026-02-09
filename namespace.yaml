@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tcloud-shell
+  labels:
+    name: tcloud-shell
+    app: tcloud-shell
