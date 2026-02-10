@@ -37,9 +37,10 @@ data:
         chown -R {{ .Values.user.name }}:{{ .Values.user.name }} /home/{{ .Values.user.name }}/.ssh
     fi
 
-    # Create workspace directory
+    # Create workspace directory with proper permissions
     mkdir -p {{ .Values.storage.mountPath }}
     chown -R {{ .Values.user.name }}:{{ .Values.user.name }} {{ .Values.storage.mountPath }}
+    chmod 755 {{ .Values.storage.mountPath }}
 
     # Setup SSH daemon
     mkdir -p /run/sshd

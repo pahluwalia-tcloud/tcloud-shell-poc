@@ -34,9 +34,10 @@ data:
         {{- end }}
     fi
 
-    # Create workspace directory
+    # Create workspace directory with proper permissions
     mkdir -p {{ .Values.storage.mountPath }}
     chown -R {{ .Values.user.name }}:{{ .Values.user.name }} {{ .Values.storage.mountPath }}
+    chmod 755 {{ .Values.storage.mountPath }}
 
     # Add motd display to .bashrc
     echo 'cat /etc/motd 2>/dev/null' >> /home/{{ .Values.user.name }}/.bashrc
